@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        :root { --cyan: #00f2fe; --bg: #0b0e14; }
+        body, html { 
+            margin: 0; padding: 0; width: 100vw; height: 100vh; 
+            background: var(--bg); color: white; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            overflow: hidden; display: flex; flex-direction: column; align-items: center; 
+        }
+        
+        /* Hiệu ứng Scanline & Nhiễu (CRT Effect) */
+        body::after { 
+            content: " "; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03)); 
+            z-index: 99; background-size: 100% 3px, 3px 100%; pointer-events: none; 
+        }
+
+        #header { 
+            width: 100%; height: 15vh; display: flex; align-items: center; 
+            justify-content: center; border-bottom: 1px solid rgba(0, 242, 254, 0.2); 
+            background: linear-gradient(to bottom, #111, var(--bg)); 
+        }
+        
+        .orb { 
+            width: 40px; height: 40px; background: var(--cyan); border-radius: 50%; 
+            box-shadow: 0 0 30px var(--cyan); animation: pulse 2s infinite ease-in-out; 
+        }
+        
+        #content { height: 85vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        
+        .status { 
+            color: var(--cyan); font-weight: 900; letter-spacing: 8px; 
+            text-transform: uppercase; margin-bottom: 20px; transition: all 0.5s;
+        }
+
+        #msg { opacity: 0.8; font-weight: 300; letter-spacing: 1px; }
+
+        .device-id { 
+            font-family: 'Courier New', Courier, monospace; opacity: 0.4; 
+            font-size: 14px; margin-top: 60px; border: 1px solid var(--cyan);
+            padding: 5px 15px; border-radius: 4px;
+        }
+
+        @keyframes pulse { 
+            0%, 100% { transform: scale(1); filter: brightness(1) blur(0px); } 
+            50% { transform: scale(1.15); filter: brightness(1.5) blur(1px); } 
+        }
+
+        .loading-text { animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.3; } }
+    </style>
+</head>
+<body>
+    <div id="header"><div class="orb"></div></div>
+    
+    <div id="content">
+        <div class="status" id="st-text" style="font-size: 60px;">KIOSK READY</div>
+        <div id="msg" style="font-size: 30px;">Vui lòng đợi lệnh từ máy chủ...</div>
+        <div class="device-id" id="display-id">ID: LOADING...</div>
+    </div>
+
+    <div id="admin-trigger" style="position:fixed; bottom:0; left:0; width:100px; height:100px; z-index:10000; cursor: pointer;"></div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        // 1. Nhận ID máy từ Main Process
+        ipcRenderer.on('device-id-report', (event, id) => {
+            document.getElementById('display-id').innerText = "DEVICE ID: " + id;
+        });
+
+        // 2. Xử lý trạng thái UI
+        ipcRenderer.on('ui-state', (event, state) => {
+            const stText = document.getElementById('st-text');
+            const msg = document.getElementById('msg');
+            
+            if(state === 'syncing') {
+                stText.innerText = 'SYNCING DATA';
+                stText.classList.add('loading-text');
+                msg.innerText = 'Đang thiết lập kết nối bảo mật...';
+            } else {
+                stText.innerText = 'SYSTEM ACTIVE';
+                stText.classList.remove('loading-text');
+                msg.innerText = 'Hệ thống đã sẵn sàng phục vụ';
+            }
+        });
+
+        // 3. Kích hoạt Admin bằng Click đúp vào góc trái dưới
+        let lastClick = 0;
+        document.getElementById('admin-trigger').addEventListener('click', () => {
+            let now = Date.now();
+            if(now - lastClick < 300) {
+                ipcRenderer.send('request-passcode-dialog');
+            }
+            lastClick = now;
+        });
+
+        // 4. Backup: Gõ mật mã nhanh từ bàn phím
+        let inputKeys = "";
+        document.addEventListener('keydown', (e) => {
+            if(!isNaN(e.key)) {
+                inputKeys += e.key;
+                if(inputKeys.length > 6) inputKeys = inputKeys.substring(1);
+                
+                // Gửi thẳng về main để verify
+                if(inputKeys === "123456" || inputKeys === "654321") {
+                    ipcRenderer.send('verify-passcode', inputKeys);
+                    inputKeys = ""; // reset
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+/* Tổng thể màn hình */
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #000; /* Nền đen tuyền để hòa nhập với viền màn hình */
+    color: white;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden; /* Chặn cuộn trang tuyệt đối */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none; /* Chặn bôi đen văn bản */
+    -webkit-tap-highlight-color: transparent; /* Tắt vệt sáng khi chạm */
+}
+
+/* KHU VỰC 1: PHẦN TIÊU ĐỀ / ORB (15% phía trên) */
+#header-section {
+    width: 100%;
+    height: 15vh; /* Khớp với thông số 15% trong file main.js */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(180deg, #1a1a1a 0%, #000 100%);
+    border-bottom: 1px solid #333;
+    z-index: 10;
+}
+
+/* Hiệu ứng Orb (Quả cầu AI) */
+.orb {
+    width: 60px;
+    height: 60px;
+    background: radial-gradient(circle, #00f2fe 0%, #0037ff 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 20px #00f2fe;
+    animation: pulse 2s infinite ease-in-out;
+}
+
+/* KHU VỰC 2: PHẦN NỘI DUNG (85% phía dưới - nơi BrowserView đè lên) */
+#content-placeholder {
+    width: 100%;
+    height: 85vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+/* Thông báo trạng thái khi đang tải */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: none; /* Chỉ hiện khi nhận lệnh loading từ main.js */
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 5;
+}
+
+/* HIỆU ỨNG ANIMATION */
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 10px #00f2fe; }
+    50% { transform: scale(1.05); opacity: 1; box-shadow: 0 0 30px #00f2fe; }
+    100% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 10px #00f2fe; }
+}
+
+/* Responsive cho màn hình cực nhỏ hoặc xoay ngang đột ngột */
+@media (orientation: landscape) {
+    .orb { width: 40px; height: 40px; }
+    #header-section { height: 20vh; }
+}

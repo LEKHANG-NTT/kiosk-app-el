@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Kiosk Setup</title>
+    <style>
+        body { 
+            background: #1a1a1a; 
+            color: white; 
+            font-family: 'Segoe UI', sans-serif; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            margin: 0; 
+            overflow: hidden;
+        }
+        .card { 
+            background: #2d2d2d; 
+            padding: 30px; 
+            border-radius: 15px; 
+            width: 400px; 
+            text-align: center; 
+            border: 1px solid #00f2fe; 
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
+        }
+        h2 { color: #00f2fe; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px; }
+        
+        .field-group { text-align: left; margin-bottom: 15px; }
+        label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; }
+        
+        input[type="text"], input[type="time"] { 
+            width: 100%; 
+            padding: 12px; 
+            border-radius: 5px; 
+            border: 1px solid #444; 
+            background: #3d3d3d; 
+            color: white; 
+            box-sizing: border-box; 
+            outline: none;
+        }
+        input:focus { border-color: #00f2fe; }
+
+        .options { 
+            display: flex; 
+            justify-content: space-around; 
+            background: #3d3d3d; 
+            padding: 10px; 
+            border-radius: 5px; 
+            margin-bottom: 20px; 
+        }
+        .options label { color: white; margin: 0; cursor: pointer; font-size: 14px; }
+        
+        button { 
+            width: 100%; 
+            padding: 15px; 
+            background: linear-gradient(45deg, #00f2fe, #4facfe); 
+            border: none; 
+            border-radius: 5px; 
+            font-weight: bold; 
+            color: #000;
+            cursor: pointer; 
+            transition: 0.3s;
+            text-transform: uppercase;
+        }
+        button:hover { opacity: 0.9; transform: scale(1.02); }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>THIẾT LẬP KIOSK</h2>
+        
+        <div class="field-group">
+            <label>CHẾ ĐỘ HOẠT ĐỘNG</label>
+            <div class="options">
+                <label><input type="radio" name="mode" value="AI" checked> AI Mode</label>
+                <label><input type="radio" name="mode" value="WEB"> Web Mode</label>
+            </div>
+        </div>
+
+        <div class="field-group">
+            <label>URL MÁY CHỦ / WEBSITE</label>
+            <input type="text" id="url" placeholder="http://192.168.1.100:3000">
+        </div>
+
+        <div class="field-group">
+            <label>SOCKET NAMESPACE</label>
+            <input type="text" id="socketNamespace" placeholder="ví dụ: vinmart-q1 (không dẫn đầu /)">
+        </div>
+
+        <div class="field-group">
+            <label>SOCKET JWT TOKEN</label>
+            <input type="text" id="socketToken" placeholder="JWT token (tùy chọn nếu server yêu cầu)">
+        </div>
+
+        <div class="field-group">
+            <label>SOCKET SERVER URL (tùy chọn)</label>
+            <input type="text" id="socketServerUrl" placeholder="http://172.16.0.10:3001 (nếu khác với URL)">
+        </div>
+
+        <div class="field-group">
+            <label>HẸN GIỜ TẮT MÁY HẰNG NGÀY</label>
+            <input type="time" id="shutdownTime" value="22:00">
+        </div>
+
+        <button onclick="save()">LƯU & KHỞI CHẠY HỆ THỐNG</button>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        function save() {
+            const mode = document.querySelector('input[name="mode"]:checked').value;
+            const url = document.getElementById('url').value;
+            const shutdownTime = document.getElementById('shutdownTime').value;
+
+            if(!url) {
+                alert("Vui lòng nhập URL của Server hoặc Website!");
+                return;
+            }
+
+            if(!shutdownTime) {
+                alert("Vui lòng chọn thời gian tắt máy!");
+                return;
+            }
+
+            // Gửi toàn bộ dữ liệu về main.js để lưu vào electron-store
+            ipcRenderer.send('save-config', { 
+                mode, 
+                url, 
+                shutdownTime,
+                socketNamespace: document.getElementById('socketNamespace').value.replace(/^\//, ''),
+                socketToken: document.getElementById('socketToken').value,
+                socketServerUrl: document.getElementById('socketServerUrl').value
+            });
+        }
+    </script>
+</body>
+</html>
