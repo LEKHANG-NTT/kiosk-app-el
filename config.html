@@ -16,15 +16,16 @@
             overflow: hidden;
         }
         .card { 
+            
             background: #2d2d2d; 
             padding: 30px; 
             border-radius: 15px; 
             width: 400px; 
             text-align: center; 
-            border: 1px solid #00f2fe; 
+            border: 1px solid #fe7b00; 
             box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
         }
-        h2 { color: #00f2fe; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px; }
+        .title-he { color: #fe7b00; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px;font-size: 40px; }
         
         .field-group { text-align: left; margin-bottom: 15px; }
         label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; }
@@ -39,7 +40,7 @@
             box-sizing: border-box; 
             outline: none;
         }
-        input:focus { border-color: #00f2fe; }
+        input:focus { border-color: #fe7b00; }
 
         .options { 
             display: flex; 
@@ -54,7 +55,7 @@
         button { 
             width: 100%; 
             padding: 15px; 
-            background: linear-gradient(45deg, #00f2fe, #4facfe); 
+            background: linear-gradient(45deg, #f58720, #fe7b00); 
             border: none; 
             border-radius: 5px; 
             font-weight: bold; 
@@ -68,7 +69,7 @@
 </head>
 <body>
     <div class="card">
-        <h2>THIẾT LẬP KIOSK</h2>
+        <span class="title-he">THIẾT LẬP KIOSK</span>
         
         <div class="field-group">
             <label>CHẾ ĐỘ HOẠT ĐỘNG</label>
@@ -94,8 +95,8 @@
         </div>
 
         <div class="field-group">
-            <label>SOCKET SERVER URL (tùy chọn)</label>
-            <input type="text" id="socketServerUrl" placeholder="http://172.16.0.10:3001 (nếu khác với URL)">
+            <label>SOCKET SERVER URL</label>
+            <input type="text" id="socketServerUrl" placeholder="http://172.16.0.10:3001">
         </div>
 
         <div class="field-group">
@@ -109,13 +110,41 @@
     <script>
         const { ipcRenderer } = require('electron');
 
+        // Nhận dữ liệu config từ main.js và hiển thị
+        ipcRenderer.on('load-config', (event, config) => {
+            // Load mode
+            if (config.mode) {
+                document.querySelector(`input[name="mode"][value="${config.mode}"]`).checked = true;
+            }
+            // Load URL
+            if (config.url) {
+                document.getElementById('url').value = config.url;
+            }
+            // Load socket namespace
+            if (config.socketNamespace) {
+                document.getElementById('socketNamespace').value = config.socketNamespace;
+            }
+            // Load socket token
+            if (config.socketToken) {
+                document.getElementById('socketToken').value = config.socketToken;
+            }
+            // Load socket server URL
+            if (config.socketServerUrl) {
+                document.getElementById('socketServerUrl').value = config.socketServerUrl;
+            }
+            // Load shutdown time
+            if (config.shutdownTime) {
+                document.getElementById('shutdownTime').value = config.shutdownTime;
+            }
+        });
+
         function save() {
             const mode = document.querySelector('input[name="mode"]:checked').value;
-            const url = document.getElementById('url').value;
+            const url = document.getElementById('socketServerUrl').value;
             const shutdownTime = document.getElementById('shutdownTime').value;
 
             if(!url) {
-                alert("Vui lòng nhập URL của Server hoặc Website!");
+                alert("Vui lòng nhập socket url");
                 return;
             }
 

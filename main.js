@@ -208,9 +208,16 @@ function setupSocket(serverUrl) {
    ========================================================== */
 function createMainWindow() {
     const config = store.get('kiosk_config');
-    if (!config) {
+    if (!config || config.showConfigModal) {
         configWin = new BrowserWindow({ width: 500, height: 550, frame: false, alwaysOnTop: true, center: true, webPreferences: { nodeIntegration: true, contextIsolation: false } });
         configWin.loadFile('config.html');
+        
+        // Gửi dữ liệu config hiện tại cho form nếu có
+        configWin.webContents.on('dom-ready', () => {
+            if (config && config.url) {
+                configWin.webContents.send('load-config', config);
+            }
+        });
         return;
     }
 
@@ -248,55 +255,59 @@ function createMainWindow() {
     // Use socketServerUrl if provided (allows separate socket management server)
     const socketServer = config.socketServerUrl || config.url;
     setupSocket(socketServer);
-    createNavBar(width, navHeight);
+    // createNavBar(width, navHeight);
     createTouchZone(height);
 }
 
-function createNavBar(width, height) {
-    navWin = new BrowserWindow({
-        width: 220, height, x: 0, y: 0, frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true,
-        focusable: false, resizable: false, hasShadow: false,
-        webPreferences: { nodeIntegration: true, contextIsolation: false }
-    });
+// function createNavBar(width, height) {
+//     navWin = new BrowserWindow({
+//         width: 220, height, x: 0, y: 0, frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true,
+//         focusable: false, resizable: false, hasShadow: false,
+//         webPreferences: { nodeIntegration: true, contextIsolation: false }
+//     });
 
-    navWin.setAlwaysOnTop(true, 'screen-saver', 15);
+//     navWin.setAlwaysOnTop(true, 'screen-saver', 15);
 
-    // Ép Nav Bar luôn nổi
-    setInterval(() => {
-        if (navWin && !navWin.isDestroyed()) {
-            navWin.setAlwaysOnTop(true, 'screen-saver', 15);
-            navWin.moveTop();
-        }
-    }, 800);
+//     // Ép Nav Bar luôn nổi
+//     setInterval(() => {
+//         if (navWin && !navWin.isDestroyed()) {
+//             navWin.setAlwaysOnTop(true, 'screen-saver', 15);
+//             navWin.moveTop();
+//         }
+//     }, 800);
 
-    const navHtml = `
-    <body style="margin:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; padding:0 10px; border-bottom-right-radius:12px; border:1px solid #333; overflow:hidden;">
-        <div style="display:flex; gap:8px;">
-            <button onclick="nav('back')" id="btn-back" style="background:#222; color:white; border:1px solid #444; width:35px; height:32px; border-radius:4px; cursor:pointer;">◀</button>
-            <button onclick="nav('forward')" id="btn-forward" style="background:#222; color:white; border:1px solid #444; width:35px; height:32px; border-radius:4px; cursor:pointer;">▶</button>
-            <button onclick="nav('reload')" style="background:#00f2fe; color:black; border:none; padding:0 12px; height:32px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:11px;">RELOAD</button>
-        </div>
-        <script>
-            const { ipcRenderer } = require('electron');
-            function nav(c){ ipcRenderer.send('nav-action', c); }
-        </script>
-    </body>`;
-    navWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(navHtml)}`);
-}
+//     const navHtml = `
+//     <body style="margin:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; padding:0 10px; border-bottom-right-radius:12px; border:1px solid #333; overflow:hidden;">
+//         <div style="display:flex; gap:8px;">
+//             <button onclick="nav('back')" id="btn-back" style="background:#222; color:white; border:1px solid #444; width:35px; height:32px; border-radius:4px; cursor:pointer;">◀</button>
+//             <button onclick="nav('forward')" id="btn-forward" style="background:#222; color:white; border:1px solid #444; width:35px; height:32px; border-radius:4px; cursor:pointer;">▶</button>
+//             <button onclick="nav('reload')" style="background:#00f2fe; color:black; border:none; padding:0 12px; height:32px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:11px;">RELOAD</button>
+//         </div>
+//         <script>
+//             const { ipcRenderer } = require('electron');
+//             function nav(c){ ipcRenderer.send('nav-action', c); }
+//         </script>
+//     </body>`;
+//     navWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(navHtml)}`);
+// }
 
 function createTouchZone(screenHeight) {
+    // Lấy kích thước toàn màn hình (bao gồm cả width để tính góc bên phải)
     const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
 
+    const winWidth = 100;
+    const winHeight = 100;
+
     touchWin = new BrowserWindow({
-        width: 100,
-        height: 100,
-        x: 0,
-        y: screenHeight - 100, // Đặt ở góc dưới bên trái
+        width: winWidth,
+        height: winHeight,
+        x: screenWidth - winWidth, 
+        y: 0, 
         frame: false,
         transparent: true,
         alwaysOnTop: true,
         skipTaskbar: true,
-        focusable: false, // Để không chiếm quyền gõ phím của View chính
+        focusable: false,
         resizable: false,
         hasShadow: false,
         webPreferences: {
@@ -305,29 +316,28 @@ function createTouchZone(screenHeight) {
         }
     });
 
-    // Mức level 100 để chắc chắn nằm trên BrowserView (thường ở level 0-10)
+    // Mức level screen-saver để đè lên mọi ứng dụng khác
     touchWin.setAlwaysOnTop(true, 'screen-saver', 100);
 
     const html = `
-    <body style="margin:0; overflow:hidden; background:transparent; -webkit-app-region: no-drag;">
+    <body style="margin:0; overflow:hidden; background:transparent; display:flex; justify-content: flex-end; align-items: flex-start; -webkit-app-region: no-drag;">
         <div id="btn"
             style="
-                width:100px;
-                height:100px;
-                background: rgba(0, 242, 254, 0.2); /* Màu xanh nhạt để bạn dễ nhìn thấy lúc test */
-                border: 2px dashed #00f2fe;
-                border-radius: 0 50% 0 0; /* Bo góc để trông giống nút ẩn */
+                width:60px;
+                height:60px;
+                background: rgba(255, 255, 255, 0.1); 
+                border-radius: 0 0 0 100%; /* Bo cong phía dưới bên trái để tạo hình cung góc trên phải */
                 display:flex;
                 align-items:center;
                 justify-content:center;
-                color: #00f2fe;
                 font-family: sans-serif;
                 font-size: 10px;
                 font-weight: bold;
                 user-select:none;
                 cursor: pointer;
-            ">
-            ADMIN
+                padding-left: 10px; /* Đẩy chữ ra giữa cung tròn */
+                padding-bottom: 10px;
+            ">   
         </div>
 
         <script>
@@ -347,7 +357,7 @@ function createTouchZone(screenHeight) {
 
     touchWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
-    // Đảm bảo nó luôn nằm trên cùng mỗi giây
+    // Duy trì vị trí trên cùng
     setInterval(() => {
         if (touchWin && !touchWin.isDestroyed()) {
             touchWin.moveTop();
@@ -385,7 +395,15 @@ ipcMain.on('request-passcode-dialog', () => {
 
 ipcMain.on('verify-passcode', (event, code) => {
     if (code === "123456") { restoreWindowsSystem(); app.exit(0); }
-    else if (code === "654321") { restoreWindowsSystem(); store.delete('kiosk_config'); app.relaunch(); app.exit(0); }
+    else if (code === "654321") { 
+        restoreWindowsSystem();
+        // Set flag để hiện thị config modal với dữ liệu cũ
+        const cfg = store.get('kiosk_config') || {};
+        cfg.showConfigModal = true;
+        store.set('kiosk_config', cfg);
+        app.relaunch(); 
+        app.exit(0); 
+    }
     else { if(promptWin) promptWin.webContents.executeJavaScript('alert("Sai mật mã!")'); }
 });
 
@@ -393,7 +411,13 @@ ipcMain.on('silent-print', () => {
     if (view) view.webContents.print({ silent: true, printBackground: true, pageSize: { width: 72000, height: 100000 } });
 });
 
-ipcMain.on('save-config', (e, data) => { store.set('kiosk_config', data); app.relaunch(); app.exit(0); });
+ipcMain.on('save-config', (e, data) => { 
+    // Xóa flag showConfigModal khi lưu config mới
+    data.showConfigModal = false;
+    store.set('kiosk_config', data); 
+    app.relaunch(); 
+    app.exit(0); 
+});
 app.disableHardwareAcceleration();
 app.whenReady().then(() => { if (isAdmin()) createMainWindow(); else app.quit(); });
 app.on('will-quit', () => restoreWindowsSystem());
