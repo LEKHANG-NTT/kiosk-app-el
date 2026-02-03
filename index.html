@@ -1,117 +1,274 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 <head>
-    <style>
-        :root { --cyan: #f58720; --bg: #464646; }
-        body, html { 
-            margin: 0; padding: 0; width: 100vw; height: 100vh; 
-            background: var(--bg); color: white; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            overflow: hidden; display: flex; flex-direction: column; align-items: center; 
-        }
-        
-        /* Hiệu ứng Scanline & Nhiễu (CRT Effect) */
-        body::after { 
-            content: " "; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03)); 
-            z-index: 99; background-size: 100% 3px, 3px 100%; pointer-events: none; 
-        }
+<meta charset="UTF-8" />
+<title>Friendly AI UI</title>
 
-        #header { 
-            width: 100%; height: 15vh; display: flex; align-items: center; 
-            justify-content: center; border-bottom: 1px solid rgba(0, 242, 254, 0.2); 
-            background: linear-gradient(to bottom, #111, var(--bg)); 
-        }
-        
-        .orb { 
-            width: 40px; height: 40px; background: var(--cyan); border-radius: 50%; 
-            box-shadow: 0 0 30px var(--cyan); animation: pulse 2s infinite ease-in-out; 
-        }
-        
-        #content { height: 85vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-        
-        .status { 
-            color: var(--cyan); font-weight: 900; letter-spacing: 8px; 
-            text-transform: uppercase; margin-bottom: 20px; transition: all 0.5s;
-        }
+<style>
+:root {
+    --bg: #0c1220;
+    --primary: #6ee7ff;
+    --accent: #a5f3fc;
+    --glow: rgba(110,231,255,.7);
+}
 
-        #msg { opacity: 0.8; font-weight: 300; letter-spacing: 1px; }
+* { box-sizing: border-box; }
 
-        .device-id { 
-            font-family: 'Courier New', Courier, monospace; opacity: 0.4; 
-            font-size: 14px; margin-top: 60px; border: 1px solid var(--cyan);
-            padding: 5px 15px; border-radius: 4px;
-        }
+html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at top, #16203a, var(--bg));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Inter","Segoe UI",sans-serif;
+    color: white;
+    overflow: hidden;
+}
 
-        @keyframes pulse { 
-            0%, 100% { transform: scale(1); filter: brightness(1) blur(0px); } 
-            50% { transform: scale(1.15); filter: brightness(1.5) blur(1px); } 
-        }
+/* ===== CONTAINER ===== */
+.ai {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 34px;
+}
 
-        .loading-text { animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.3; } }
-    </style>
+/* ===== FACE ===== */
+.face {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    animation: face-breath 2s ease-in-out infinite;
+}
+
+/* ===== EYEBROWS ===== */
+.brows {
+    display: flex;
+    gap: 70px;
+}
+
+.brow {
+    width: 84px;
+    height: 10px;
+    border-radius: 20px;
+    background: linear-gradient(80deg, var(--accent), var(--primary));
+    opacity: .85;
+    animation: brow-happy 2s ease-in-out infinite;
+}
+
+.brow.right { animation-delay: .1s; }
+
+/* ===== EYES ===== */
+.eyes {
+    display: flex;
+    gap: 60px;
+}
+
+.eye {
+    width: 96px;
+    height: 96px;
+    border-radius: 40%;
+    background:
+        radial-gradient(circle at 100% 10%, #ffffff 0%, #dffaff 35%, var(--primary) 50%);
+    box-shadow:
+        0 0 22px var(--glow),
+        inset 0 0 18px rgba(255,255,255,.9);
+    position: relative;
+    animation:
+        eye-float 1s ease-in-out infinite,
+        blink 2s infinite;
+}
+
+.eye::after {
+    content: "";
+    position: absolute;
+    inset: 26%;
+    border-radius: 50%;
+    background: radial-gradient(circle, #0c1220 0%, #0c1220 60%, transparent 70%);
+    animation: pupil-happy 3s ease-in-out infinite;
+}
+
+/* ===== MOUTH ===== */
+.mouth {
+    width: 92px;
+    height: 42px;
+    border-bottom: 6px solid var(--primary);
+    border-radius: 0 0 100px 100px;
+    box-shadow: 0 10px 20px var(--glow);
+    animation: mouth-happy 4s ease-in-out infinite;
+}
+
+/* ===== SYNCING / THINKING ===== */
+.syncing .eye::after {
+    inset: 32%;
+}
+
+.syncing .mouth {
+    width: 32px;
+    border-radius: 8px;
+    animation: none;
+}
+
+/* ===== TEXT ===== */
+.status {
+    font-size: 13px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    opacity: .65;
+}
+
+.loading-text {
+    animation: pulse-text 1.5s infinite;
+}
+
+h1 {
+    margin: 0;
+    font-size: 38px;
+    font-weight: 300;
+}
+
+p {
+    margin: 10px 0 0;
+    opacity: .55;
+    font-size: 17px;
+}
+
+/* ===== ADMIN HOTZONE ===== */
+#admin-trigger {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 80px;
+    height: 80px;
+}
+
+/* ===== DEVICE ID ===== */
+#display-id {
+    position: fixed;
+    bottom: 14px;
+    right: 18px;
+    font-size: 12px;
+    opacity: .35;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes face-breath {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes eye-float {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+@keyframes pupil-happy {
+    0%,100% { inset: 26%; }
+    50% { inset: 30%; }
+}
+
+@keyframes mouth-happy {
+    0%,100% { width: 92px; }
+    50% { width: 112px; }
+}
+
+@keyframes brow-happy {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+@keyframes blink {
+    0%,47%,53%,100% { transform: scaleY(1); }
+    50% { transform: scaleY(0.08); }
+}
+
+@keyframes pulse-text {
+    0%,100% { opacity: .4; }
+    50% { opacity: 1; }
+}
+</style>
 </head>
+
 <body>
-    <div id="header"><div class="orb"></div></div>
-    
-    <div id="content">
-        <div class="status" id="st-text" style="font-size: 60px;">XIN CHÀO</div>
-        <div id="msg" style="font-size: 30px;">TÔI CÓ THỂ GIÚP GÌ CHO BẠN</div>
-       
+
+<div class="ai">
+    <div class="face" id="ai-face">
+        <div class="brows">
+            <div class="brow"></div>
+            <div class="brow right"></div>
+        </div>
+
+        <div class="eyes">
+            <div class="eye"></div>
+            <div class="eye"></div>
+        </div>
+
+        <div class="mouth"></div>
     </div>
 
-    <div id="admin-trigger" style="position:fixed; bottom:0; left:0; width:100px; height:100px; z-index:10000; cursor: pointer;"></div>
+   
+    <h1>Xin chào bạn</h1>
+    <p id="msg">Hệ thống đã sẵn sàng phục vụ</p>
+     <div class="status" id="st-text">SYSTEM ACTIVE</div>
+</div>
 
-    <script>
-        const { ipcRenderer } = require('electron');
+<div id="display-id"></div>
+<div id="admin-trigger"></div>
 
-        // 1. Nhận ID máy từ Main Process
-        ipcRenderer.on('device-id-report', (event, id) => {
-            document.getElementById('display-id').innerText = "DEVICE ID: " + id;
-        });
+<script>
+const { ipcRenderer } = require('electron');
 
-        // 2. Xử lý trạng thái UI
-        ipcRenderer.on('ui-state', (event, state) => {
-            const stText = document.getElementById('st-text');
-            const msg = document.getElementById('msg');
-            
-            if(state === 'syncing') {
-                stText.innerText = 'SYNCING DATA';
-                stText.classList.add('loading-text');
-                msg.innerText = 'Đang thiết lập kết nối bảo mật...';
-            } else {
-                stText.innerText = 'SYSTEM ACTIVE';
-                stText.classList.remove('loading-text');
-                msg.innerText = 'Hệ thống đã sẵn sàng phục vụ';
-            }
-        });
+/* 1. Nhận DEVICE ID */
+ipcRenderer.on('device-id-report', (event, id) => {
+    document.getElementById('display-id').innerText = "DEVICE ID: " + id;
+});
 
-        // 3. Kích hoạt Admin bằng Click đúp vào góc trái dưới
-        let lastClick = 0;
-        document.getElementById('admin-trigger').addEventListener('click', () => {
-            let now = Date.now();
-            if(now - lastClick < 300) {
-                ipcRenderer.send('request-passcode-dialog');
-            }
-            lastClick = now;
-        });
+/* 2. UI STATE */
+ipcRenderer.on('ui-state', (event, state) => {
+    const face = document.getElementById('ai-face');
+    const stText = document.getElementById('st-text');
+    const msg = document.getElementById('msg');
 
-        // 4. Backup: Gõ mật mã nhanh từ bàn phím
-        let inputKeys = "";
-        document.addEventListener('keydown', (e) => {
-            if(!isNaN(e.key)) {
-                inputKeys += e.key;
-                if(inputKeys.length > 6) inputKeys = inputKeys.substring(1);
-                
-                // Gửi thẳng về main để verify
-                if(inputKeys === "123456" || inputKeys === "654321") {
-                    ipcRenderer.send('verify-passcode', inputKeys);
-                    inputKeys = ""; // reset
-                }
-            }
-        });
-    </script>
+    if (state === 'syncing') {
+        face.classList.add('syncing');
+        stText.innerText = 'SYNCING DATA';
+        stText.classList.add('loading-text');
+        msg.innerText = 'Đang thiết lập kết nối bảo mật...';
+    } else {
+        face.classList.remove('syncing');
+        stText.innerText = 'SYSTEM ACTIVE';
+        stText.classList.remove('loading-text');
+        msg.innerText = 'Hệ thống đã sẵn sàng phục vụ';
+    }
+});
+
+/* 3. ADMIN TRIGGER (double click) */
+let lastClick = 0;
+document.getElementById('admin-trigger').addEventListener('click', () => {
+    let now = Date.now();
+    if (now - lastClick < 300) {
+        ipcRenderer.send('request-passcode-dialog');
+    }
+    lastClick = now;
+});
+
+/* 4. BACKUP PASSCODE */
+let inputKeys = "";
+document.addEventListener('keydown', (e) => {
+    if (!isNaN(e.key)) {
+        inputKeys += e.key;
+        if (inputKeys.length > 6) inputKeys = inputKeys.substring(1);
+
+        if (inputKeys === "123456" || inputKeys === "654321") {
+            ipcRenderer.send('verify-passcode', inputKeys);
+            inputKeys = "";
+        }
+    }
+});
+</script>
+
 </body>
 </html>

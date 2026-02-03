@@ -74,14 +74,14 @@
         <div class="field-group">
             <label>CHẾ ĐỘ HOẠT ĐỘNG</label>
             <div class="options">
-                <label><input type="radio" name="mode" value="AI" checked> AI Mode</label>
-                <label><input type="radio" name="mode" value="WEB"> Web Mode</label>
+                <label><input type="radio" name="mode" value="AI" checked> AI Mode <span id="aiHint" style="font-size:12px;color:#ccc;margin-left:6px;"></span></label>
+                <label><input type="radio" name="mode" value="WEB"> Web Mode <span id="webHint" style="font-size:12px;color:#ccc;margin-left:6px;"></span></label>
             </div>
         </div>
 
-        <div class="field-group">
-            <label>URL MÁY CHỦ / WEBSITE</label>
-            <input type="text" id="url" placeholder="http://192.168.1.100:3000">
+        <div class="field-group" id="websiteGroup">
+            <label>WEBSITE URL (chỉ Web Mode)</label>
+            <input type="text" id="url" placeholder="http://example.com">
         </div>
 
         <div class="field-group">
@@ -95,7 +95,7 @@
         </div>
 
         <div class="field-group">
-            <label>SOCKET SERVER URL</label>
+            <label>SOCKET SERVER URL (dùng để kết nối MCP)</label>
             <input type="text" id="socketServerUrl" placeholder="http://172.16.0.10:3001">
         </div>
 
@@ -108,18 +108,41 @@
     </div>
 
     <script>
-        const { ipcRenderer } = require('electron');
+        const { ipcRenderer, shell } = require('electron');
+
+        function updateModeUI(mode) {
+            const websiteGroup = document.getElementById('websiteGroup');
+            const urlInput = document.getElementById('url');
+            if (mode === 'AI') {
+                // AI mode: website URL not needed
+                websiteGroup.style.opacity = '0.6';
+                urlInput.disabled = true;
+                urlInput.placeholder = '(Không cần nhập URL website cho AI Mode)';
+            } else {
+                websiteGroup.style.opacity = '1';
+                urlInput.disabled = false;
+                urlInput.placeholder = 'http://example.com';
+            }
+        }
+
+        // Khi thay đổi option
+        document.querySelectorAll('input[name="mode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => updateModeUI(e.target.value));
+        });
 
         // Nhận dữ liệu config từ main.js và hiển thị
         ipcRenderer.on('load-config', (event, config) => {
             // Load mode
             if (config.mode) {
-                document.querySelector(`input[name="mode"][value="${config.mode}"]`).checked = true;
+                const modeInput = document.querySelector(`input[name="mode"][value="${config.mode}"]`);
+                if (modeInput) modeInput.checked = true;
             }
-            // Load URL
+
+            // Load URL (website) - used only in Web mode
             if (config.url) {
                 document.getElementById('url').value = config.url;
             }
+
             // Load socket namespace
             if (config.socketNamespace) {
                 document.getElementById('socketNamespace').value = config.socketNamespace;
@@ -136,15 +159,31 @@
             if (config.shutdownTime) {
                 document.getElementById('shutdownTime').value = config.shutdownTime;
             }
+
+            // Update small hints next to options to show configured values
+            document.getElementById('webHint').textContent = config.url ? `(Website: ${config.url})` : '';
+            document.getElementById('aiHint').textContent = config.socketServerUrl ? `(Socket: ${config.socketServerUrl})` : '';
+
+            // Ensure UI matches selected mode
+            const selectedMode = document.querySelector('input[name="mode"]:checked').value;
+            updateModeUI(selectedMode);
         });
 
         function save() {
             const mode = document.querySelector('input[name="mode"]:checked').value;
-            const url = document.getElementById('socketServerUrl').value;
+            const websiteUrl = document.getElementById('url').value.trim();
+            const socketServerUrl = document.getElementById('socketServerUrl').value.trim();
             const shutdownTime = document.getElementById('shutdownTime').value;
 
-            if(!url) {
-                alert("Vui lòng nhập socket url");
+            // Validate socket server URL (required always)
+            if(!socketServerUrl) {
+                alert("Vui lòng nhập socket server URL");
+                return;
+            }
+
+            // If Web mode, website URL is required
+            if (mode === 'WEB' && !websiteUrl) {
+                alert("Web Mode yêu cầu nhập Website URL");
                 return;
             }
 
@@ -156,11 +195,11 @@
             // Gửi toàn bộ dữ liệu về main.js để lưu vào electron-store
             ipcRenderer.send('save-config', { 
                 mode, 
-                url, 
+                url: websiteUrl || '', 
                 shutdownTime,
                 socketNamespace: document.getElementById('socketNamespace').value.replace(/^\//, ''),
                 socketToken: document.getElementById('socketToken').value,
-                socketServerUrl: document.getElementById('socketServerUrl').value
+                socketServerUrl
             });
         }
     </script>

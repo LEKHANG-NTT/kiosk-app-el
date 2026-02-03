@@ -115,7 +115,11 @@ async function reportDeviceInfo() {
             freeRam: (mem.free / (1024 ** 3)).toFixed(2) + " GB", // Thêm báo cáo RAM trống
             ip: network.find(n => !n.internal && n.ip4)?.ip4 || "127.0.0.1",
             shutdownTime: config ? config.shutdownTime : "N/A",
-            printers: printers.map(p => p.name)
+            printers: printers.map(p => p.name),
+            // Thêm thông tin cấu hình để lưu vào `specs` trên server
+            url: config?.url || null,
+            mode: config?.mode || null,
+            socketServerUrl: config?.socketServerUrl || null
         };
         if (socket && socket.connected) socket.emit('kiosk-report-config', deviceInfo);
     } catch (err) { console.error(err); }
@@ -212,9 +216,9 @@ function createMainWindow() {
         configWin = new BrowserWindow({ width: 500, height: 550, frame: false, alwaysOnTop: true, center: true, webPreferences: { nodeIntegration: true, contextIsolation: false } });
         configWin.loadFile('config.html');
         
-        // Gửi dữ liệu config hiện tại cho form nếu có
+        // Gửi dữ liệu config hiện tại cho form nếu có (không phụ thuộc vào config.url)
         configWin.webContents.on('dom-ready', () => {
-            if (config && config.url) {
+            if (config) {
                 configWin.webContents.send('load-config', config);
             }
         });
@@ -411,10 +415,20 @@ ipcMain.on('silent-print', () => {
     if (view) view.webContents.print({ silent: true, printBackground: true, pageSize: { width: 72000, height: 100000 } });
 });
 
-ipcMain.on('save-config', (e, data) => { 
+ipcMain.on('save-config', async (e, data) => { 
     // Xóa flag showConfigModal khi lưu config mới
     data.showConfigModal = false;
     store.set('kiosk_config', data); 
+
+    // Nếu đã có kết nối socket, gửi ngay reportDeviceInfo để Dashboard cập nhật cấu hình (url/mode/socket)
+    try {
+        if (socket && socket.connected) {
+            await reportDeviceInfo();
+            console.log('✅ reportDeviceInfo đã gửi sau khi lưu config');
+        }
+    } catch (err) { console.error('Gửi reportDeviceInfo thất bại:', err); }
+
+    // Relaunch app để áp dụng cấu hình mới
     app.relaunch(); 
     app.exit(0); 
 });
