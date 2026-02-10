@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>Không có kết nối</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { background: #111; color: #fff; font-family: 'Segoe UI', sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; margin:0 }
+    .card { width: 900px; max-width:100%; background:#1b1b1b; padding:20px; border-radius:12px; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+    h1 { margin:0 0 8px 0; color:#fe7b00 }
+    p { margin:0 0 12px 0; color:#ddd }
+    .status { margin-top:12px; color:#9bd5ff }
+    .carousel { height:280px; margin-top:12px; display:flex; align-items:center; justify-content:center; background:#000; border-radius:8px; overflow:hidden }
+    .carousel img, .carousel video { max-width:100%; max-height:100%; object-fit:contain }
+    .controls { margin-top:12px; display:flex; gap:8px }
+    button { background:#fe7b00; border:none; padding:8px 12px; border-radius:6px; cursor:pointer }
+    small { color:#888 }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Đang cố gắng kết nối lại...</h1>
+    <p>Xin lỗi, kiosk hiện đang mất kết nối với server. Hệ thống sẽ tự động thử kết nối lại. Bạn có thể kiểm tra mạng hoặc liên hệ quản trị viên.</p>
+
+    <div class="carousel" id="carousel">Loading assets...</div>
+
+    <div class="status" id="status">Trạng thái: Đang thử (0)</div>
+    <div class="controls">
+      <button id="retry">Thử lại ngay</button>
+      <button id="openLogin" style="background:#222; color:#fff">Mở bảng quản trị</button>
+      <small id="last">—</small>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const carousel = document.getElementById('carousel');
+    const lastEl = document.getElementById('last');
+
+    let attempts = 0;
+    let assets = [];
+    let idx = 0;
+    let carouselTimer = null;
+
+    async function loadAssets() {
+      try {
+        const res = await fetch('offline_assets/index.json');
+        assets = await res.json();
+        if (assets.length) {
+          showAsset(0);
+          carouselTimer = setInterval(() => showAsset(++idx % assets.length), 6000);
+        } else {
+          carousel.textContent = 'No local assets';
+        }
+      } catch (e) { carousel.textContent = 'Không có nội dung quảng cáo cục bộ'; }
+    }
+
+    function showAsset(i) {
+      const a = assets[i];
+      carousel.innerHTML = '';
+      if (!a) return;
+      if (a.type === 'image') {
+        const img = document.createElement('img'); img.src = a.url; carousel.appendChild(img);
+      } else if (a.type === 'video') {
+        const v = document.createElement('video'); v.src = a.url; v.autoplay = true; v.loop = true; v.muted = true; carousel.appendChild(v);
+      }
+    }
+
+    async function tryReconnect() {
+      attempts++;
+      statusEl.textContent = 'Trạng thái: Đang thử (' + attempts + ')';
+      lastEl.textContent = 'Lần thử cuối: ' + (new Date()).toLocaleTimeString();
+      // Ping backend /api/debug or heartbeat endpoint
+      try {
+        const base = (new URL(location.href)).origin.replace(/:\d+$/, ':3001');
+        const ping = await fetch(base + '/api/debug/ping', { method: 'GET', cache: 'no-cache' });
+        if (ping.ok) {
+          // notify main to reload original URL
+          window.location = 'app://reload'; // handled by main process (will be intercepted)
+        }
+      } catch (e) { /* ignore */ }
+
+      // exponential backoff up to a limit
+      const next = Math.min(30000, 2000 * Math.pow(1.4, attempts));
+      return setTimeout(tryReconnect, next);
+    }
+
+    document.getElementById('retry').addEventListener('click', () => { attempts = 0; tryReconnect(); });
+    document.getElementById('openLogin').addEventListener('click', () => { window.location = 'app://open-admin'; });
+
+    // Init
+    loadAssets();
+    tryReconnect();
+
+    // Allow main to open this file and control (if needed)
+    window.addEventListener('message', (e) => {
+      if (e.data === 'reloadNow') location.reload();
+    });
+  </script>
+</body>
+</html>

@@ -9,7 +9,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     printPage: () => ipcRenderer.send('silent-print'),
     
     // Cho phép web thủ công báo cáo hoạt động (nếu cần)
-    reportActivity: () => ipcRenderer.send('user-activity')
+    reportActivity: () => ipcRenderer.send('user-activity'),
+
+    // Yêu cầu clear session (cookies / storage)
+    clearSession: () => ipcRenderer.send('clear-session'),
+
+    // Yêu cầu mở QR scanner (mở trang nội bộ cung cấp scanner)
+    openQrScanner: () => ipcRenderer.send('open-qr-scanner')
 });
 
 // 2. Tự động theo dõi hoạt động (Idle Timeout)
@@ -38,4 +44,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Lắng nghe sự kiện focus trên toàn trang (Event Delegation)
     document.addEventListener('focusin', handleFocus);
+
+    // Forward in-window messages (e.g., qr scanner posts) to main
+    window.addEventListener('message', (e) => {
+        try {
+            if (e.data && e.data.type === 'qr') {
+                ipcRenderer.send('qr-detected', e.data.data);
+            } else if (e.data && e.data.type === 'qr-home') {
+                ipcRenderer.send('qr-home');
+            }
+        } catch (err) { }
+    });
 });
