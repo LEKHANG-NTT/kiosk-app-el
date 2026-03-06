@@ -7,7 +7,7 @@ const Store = require('electron-store');
 const si = require('systeminformation');
 const schedule = require('node-schedule');
 const screenshot = require('screenshot-desktop');
- const { desktopCapturer } = require('electron');
+const { desktopCapturer } = require('electron');
 
 // Capture screenshot and send to server
 async function handleScreenshot() {
@@ -60,12 +60,12 @@ function setShutdownSchedule(timeStr) {
     const [hour, minute] = timeStr.split(':');
     shutdownJob = schedule.scheduleJob(`${minute} ${hour} * * *`, () => {
         restoreWindowsSystem();
-        exec('shutdown /s /t 60'); 
+        exec('shutdown /s /t 60');
     });
 }
 
 function enableKioskHardening() {
-    const appPath = app.getPath('exe'); 
+    const appPath = app.getPath('exe');
     try {
         execSync(`reg add "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon" /v "Shell" /t REG_SZ /d "${appPath}" /f`);
         execSync('reg add "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer" /v "NoWinKeys" /t REG_DWORD /d 1 /f');
@@ -77,7 +77,7 @@ function restoreWindowsSystem() {
     try {
         execSync('reg delete "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon" /v "Shell" /f');
         execSync('reg add "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer" /v "NoWinKeys" /t REG_DWORD /d 0 /f');
-    } catch (e) {}
+    } catch (e) { }
     exec('start explorer.exe');
 }
 
@@ -88,7 +88,7 @@ async function clearAllSession() {
     if (!view) return;
     try {
         console.log('Clearing all session storage and cache...');
-        await view.webContents.session.clearStorageData({ storages: ['cookies','localstorage','indexdb','serviceworkers'] });
+        await view.webContents.session.clearStorageData({ storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers'] });
         await view.webContents.session.clearCache();
     } catch (e) { console.error('clearAllSession failed', e); }
 }
@@ -166,7 +166,7 @@ function setupSocket(serverUrl) {
             console.log('mcp-command raw:', data);
             const cmd = data.cmd;
             const payload = data.payload || {};
-         const target = (data.target || 'ALL').toString().toUpperCase();
+            const target = (data.target || 'ALL').toString().toUpperCase();
 
             if (target !== MY_ID && target !== 'ALL') {
                 console.log(`mcp-command ignored for target=${target}`);
@@ -213,7 +213,7 @@ function setupSocket(serverUrl) {
             }
         } catch (err) {
             console.error('Error handling mcp-command', err);
-            try { socket.emit('mcp-command-response', { commandId: data.commandId, result: 'error', error: err.message }); } catch (e) {}
+            try { socket.emit('mcp-command-response', { commandId: data.commandId, result: 'error', error: err.message }); } catch (e) { }
         }
     });
 }
@@ -226,7 +226,7 @@ function createMainWindow() {
     if (!config || config.showConfigModal) {
         configWin = new BrowserWindow({ width: 500, height: 550, frame: false, alwaysOnTop: true, center: true, webPreferences: { nodeIntegration: true, contextIsolation: false } });
         configWin.loadFile('config.html');
-        
+
         // Gửi dữ liệu config hiện tại cho form nếu có (không phụ thuộc vào config.url)
         configWin.webContents.on('dom-ready', () => {
             if (config) {
@@ -238,7 +238,7 @@ function createMainWindow() {
 
     enableKioskHardening();
     setShutdownSchedule(config.shutdownTime);
-    
+
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
     const navHeight = 45;
 
@@ -252,7 +252,7 @@ function createMainWindow() {
     });
 
     win.setBrowserView(view);
-    
+
     // Watchdog: Tự động tải lại trang nếu bị treo hoặc crash
     // Keep local state for reconnect/backoff
     view._reconnectAttempts = 0;
@@ -283,14 +283,230 @@ function createMainWindow() {
         } catch (e) { console.error('load offline failed', e); }
     });
 
-    // When page successfully loads -> reset reconnect attempts
+    // When page successfully loads -> reset reconnect attempts and inject input filter
     view.webContents.on('did-finish-load', () => {
-        view._reconnectAttempts = 0;
-        if (view._reconnectTimer) { clearTimeout(view._reconnectTimer); view._reconnectTimer = null; }
-        // if previously offline, emit recovered
-        socket?.emit && socket.emit('kiosk-recovered', { time: new Date() });
-    });
 
+                // Inject CSS cho bàn phím ảo, căn chỉnh đều phím và popup
+                const keyboardCss = `
+                #kiosk-suggest-bar button{
+                    background:#444;
+                    border:none;
+                    color:#fff;
+                    font-size:1.2em;
+                    padding:6px 12px;
+                    border-radius:6px;
+                    }
+                .simple-keyboard { background: #222; border-radius: 12px; padding: 8px; }
+                .hg-row { display: flex; justify-content: stretch; margin-bottom: 4px; gap: 4px; }
+                .hg-button { flex: 1 1 0; font-size: 1.4em; margin: 0; border-radius: 8px; background: #333; color: #fff; border: none; min-width: 0; min-height: 48px; height: 48px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+                .hg-button:active { background: #444; }
+                #kiosk-keyboard-wrapper { position:fixed; bottom:0; left:0; width:100%; z-index:999999; display:none; background:#222; padding:10px 0 0 0; box-shadow: 0 -5px 15px rgba(0,0,0,0.3); }
+                .popup-keyboard-variant { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); background: #444; border-radius: 8px; padding: 6px 8px; z-index: 1000000; display: flex; gap: 6px; }
+                .popup-keyboard-variant button { font-size: 1.3em; background: #666; color: #fff; border: none; border-radius: 6px; padding: 6px 10px; margin: 0 2px; }
+                `;
+                view.webContents.insertCSS(keyboardCss);
+
+                // Inject JS cho bàn phím ảo: layout không chứa ký tự popup, long press chuẩn, cập nhật Caps Lock, inject 1 lần
+                        const keyboardScript = `
+            (function(){
+
+            if(window.__KIOSK_KEYBOARD__) return;
+            window.__KIOSK_KEYBOARD__=true;
+
+            const suggestMap={
+            a:['á','à','ả','ã','ạ','ă','â'],
+            e:['é','è','ẻ','ẽ','ẹ','ê'],
+            i:['í','ì','ỉ','ĩ','ị'],
+            o:['ó','ò','ỏ','õ','ọ','ô','ơ'],
+            u:['ú','ù','ủ','ũ','ụ','ư'],
+            y:['ý','ỳ','ỷ','ỹ','ỵ'],
+            d:['đ']
+            };
+
+            let currentSuggestions=[];
+
+            const layoutBase=[
+            '{suggest}',
+            '1 2 3 4 5 6 7 8 9 0 {backspace}',
+            'q w e r t y u i o p',
+            '{caps} a s d f g h j k l',
+            'z x c v {space} b n m {close}'
+            ];
+
+            let isCaps=false;
+            let activeInput=null;
+
+            function getLayout(){
+
+            const suggestRow=currentSuggestions.join(' ');
+
+            const rows=[...layoutBase];
+
+            rows[0]=suggestRow || '';
+
+            return rows.map(row=>{
+
+            return row.split(' ').map(k=>{
+            if(k.length===1 && /[a-z]/i.test(k))
+            return isCaps ? k.toUpperCase() : k.toLowerCase();
+
+            return k;
+
+            }).join(' ');
+
+            });
+
+            }
+
+            function updateSuggestions(key,keyboard){
+
+            const list=suggestMap[key?.toLowerCase()] || [];
+
+            currentSuggestions=isCaps ? list.map(c=>c.toUpperCase()) : list;
+
+            keyboard.setOptions({
+            layout:{default:getLayout()}
+            });
+
+            }
+
+            const script=document.createElement('script');
+            script.src='https://cdn.jsdelivr.net/npm/simple-keyboard@latest/build/index.min.js';
+
+            script.onload=()=>{
+
+            const Keyboard=window.SimpleKeyboard.default;
+
+            const keyboard=new Keyboard({
+
+            layout:{default:getLayout()},
+
+            display:{
+            '{backspace}':'⌫',
+            '{space}':'Space',
+            '{close}':'Đóng',
+            '{caps}':'Caps'
+            },
+
+            onKeyPress:button=>{
+
+            if(!activeInput) return;
+
+            if(currentSuggestions.includes(button)){
+
+            activeInput.value=
+            activeInput.value.slice(0,-1)+button;
+
+            activeInput.dispatchEvent(new Event('input',{bubbles:true}));
+
+            return;
+
+            }
+
+            if(button==='{caps}'){
+
+            isCaps=!isCaps;
+
+            keyboard.setOptions({
+            layout:{default:getLayout()}
+            });
+
+            return;
+
+            }
+
+            if(button==='{backspace}'){
+
+            activeInput.value=
+            activeInput.value.slice(0,-1);
+
+            activeInput.dispatchEvent(new Event('input',{bubbles:true}));
+
+            return;
+
+            }
+
+            if(button==='{space}'){
+
+            activeInput.value+=' ';
+
+            activeInput.dispatchEvent(new Event('input',{bubbles:true}));
+
+            currentSuggestions=[];
+
+            keyboard.setOptions({layout:{default:getLayout()}});
+
+            return;
+
+            }
+
+            if(button==='{close}'){
+
+            document.getElementById('kiosk-keyboard-wrapper').style.display='none';
+
+            return;
+
+            }
+
+            if(button.length===1){
+
+            const char=isCaps ? button.toUpperCase() : button;
+
+            activeInput.value+=char;
+
+            activeInput.dispatchEvent(new Event('input',{bubbles:true}));
+
+            updateSuggestions(button,keyboard);
+
+            }
+
+            }
+
+            });
+
+            };
+
+            document.head.appendChild(script);
+
+            if(!document.getElementById('kiosk-keyboard-wrapper')){
+
+            const div=document.createElement('div');
+            div.id='kiosk-keyboard-wrapper';
+            div.innerHTML='<div class="simple-keyboard"></div>';
+            document.body.appendChild(div);
+
+            }
+
+            document.addEventListener('focusin',e=>{
+
+            if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'){
+
+            activeInput=e.target;
+
+            document.getElementById('kiosk-keyboard-wrapper').style.display='block';
+
+            }
+
+            });
+
+            document.addEventListener('mousedown',e=>{
+
+            const wrap=document.getElementById('kiosk-keyboard-wrapper');
+
+            if(wrap && !wrap.contains(e.target)
+            && e.target.tagName!=='INPUT'
+            && e.target.tagName!=='TEXTAREA'){
+
+            wrap.style.display='none';
+
+            }
+
+            });
+
+            })();
+            `;
+                view.webContents.executeJavaScript(keyboardScript);
+    });
     // Intercept navigations from offline page (app://reload, app://open-admin)
     view.webContents.on('will-navigate', (e, url) => {
         if (url === 'app://reload') {
@@ -387,37 +603,7 @@ function createMainWindow() {
     createQuickButtons(height);
 }
 
-// function createNavBar(width, height) {
-//     navWin = new BrowserWindow({
-//         width: 220, height, x: 0, y: 0, frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true,
-//         focusable: false, resizable: false, hasShadow: false,
-//         webPreferences: { nodeIntegration: true, contextIsolation: false }
-//     });
 
-//     navWin.setAlwaysOnTop(true, 'screen-saver', 15);
-
-//     // Ép Nav Bar luôn nổi
-//     setInterval(() => {
-//         if (navWin && !navWin.isDestroyed()) {
-//             navWin.setAlwaysOnTop(true, 'screen-saver', 15);
-//             navWin.moveTop();
-//         }
-//     }, 800);
-
-//     const navHtml = `
-//     <body style="margin:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; padding:0 10px; border-bottom-right-radius:12px; border:1px solid #333; overflow:hidden;">
-//         <div style="display:flex; gap:8px;">
-//             <button onclick="nav('back')" id="btn-back" style="background:#222; color:white; border:1px solid #444; width:35px; height:32px; border-radius:4px; cursor:pointer;">◀</button>
-//             <button onclick="nav('forward')" id="btn-forward" style="background:#222; color:white; border:1px solid #444; width:35px; height:32px; border-radius:4px; cursor:pointer;">▶</button>
-//             <button onclick="nav('reload')" style="background:#00f2fe; color:black; border:none; padding:0 12px; height:32px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:11px;">RELOAD</button>
-//         </div>
-//         <script>
-//             const { ipcRenderer } = require('electron');
-//             function nav(c){ ipcRenderer.send('nav-action', c); }
-//         </script>
-//     </body>`;
-//     navWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(navHtml)}`);
-// }
 
 function createTouchZone(screenHeight) {
     // Lấy kích thước toàn màn hình (bao gồm cả width để tính góc bên phải)
@@ -429,8 +615,8 @@ function createTouchZone(screenHeight) {
     touchWin = new BrowserWindow({
         width: winWidth,
         height: winHeight,
-        x: screenWidth - winWidth, 
-        y: 0, 
+        x: screenWidth - winWidth,
+        y: 0,
         frame: false,
         transparent: true,
         alwaysOnTop: true,
@@ -531,13 +717,12 @@ function createQuickButtons(screenHeight) {
    ========================================================== */
 ipcMain.on('user-activity', () => resetIdleTimer());
 
-ipcMain.on('open-virtual-keyboard', () => exec('osk.exe'));
+
 
 ipcMain.on('clear-session', async () => {
     try { await clearAllSession(); console.log('Session cleared via IPC'); } catch (e) { console.error(e); }
 });
 
-// Open QR scanner inside main view (local-only)
 ipcMain.on('open-qr-in-view', () => {
     try {
         if (!view) return;
@@ -547,7 +732,6 @@ ipcMain.on('open-qr-in-view', () => {
     } catch (e) { console.error('open-qr-in-view error', e); }
 });
 
-// Home action from QR scanner (or overlay)
 ipcMain.on('qr-home', () => {
     try {
         qrLocalMode = false;
@@ -562,7 +746,6 @@ ipcMain.on('qr-home', () => {
 });
 
 ipcMain.on('open-qr-scanner', () => {
-    // Open a modal window with scanner (legacy)
     try {
         const scannerWin = new BrowserWindow({ width: 800, height: 600, modal: true, parent: win, webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true } });
         scannerWin.loadFile('qr-scanner.html');
@@ -575,9 +758,9 @@ ipcMain.on('qr-detected', (event, data) => {
         // show in current view (scanner page already updates #out, but ensure big display)
         try {
             if (view && view.webContents) {
-                view.webContents.executeJavaScript(`(function(){ const el=document.getElementById('out'); if(el) el.textContent='Detected: '+${JSON.stringify(data)}; const big=document.getElementById('bigout'); if(!big){ const b=document.createElement('div'); b.id='bigout'; b.style= 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.85);color:#fff;padding:20px;border-radius:8px;font-size:22px;z-index:100000;'; b.textContent=${JSON.stringify(data)}; document.body.appendChild(b);} else big.textContent=${JSON.stringify(data)}; })()`).catch(()=>{});
+                view.webContents.executeJavaScript(`(function(){ const el=document.getElementById('out'); if(el) el.textContent='Detected: '+${JSON.stringify(data)}; const big=document.getElementById('bigout'); if(!big){ const b=document.createElement('div'); b.id='bigout'; b.style= 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.85);color:#fff;padding:20px;border-radius:8px;font-size:22px;z-index:100000;'; b.textContent=${JSON.stringify(data)}; document.body.appendChild(b);} else big.textContent=${JSON.stringify(data)}; })()`).catch(() => { });
             }
-        } catch (e) {}
+        } catch (e) { }
         return;
     }
     if (socket && socket.connected) socket.emit('kiosk-qr', { kioskId: MY_ID, data });
@@ -606,28 +789,25 @@ ipcMain.on('request-passcode-dialog', () => {
 
 ipcMain.on('verify-passcode', (event, code) => {
     if (code === "123456") { restoreWindowsSystem(); app.exit(0); }
-    else if (code === "654321") { 
+    else if (code === "654321") {
         restoreWindowsSystem();
-        // Set flag để hiện thị config modal với dữ liệu cũ
         const cfg = store.get('kiosk_config') || {};
         cfg.showConfigModal = true;
         store.set('kiosk_config', cfg);
-        app.relaunch(); 
-        app.exit(0); 
+        app.relaunch();
+        app.exit(0);
     }
-    else { if(promptWin) promptWin.webContents.executeJavaScript('alert("Sai mật mã!")'); }
+    else { if (promptWin) promptWin.webContents.executeJavaScript('alert("Sai mật mã!")'); }
 });
 
 ipcMain.on('silent-print', () => {
     if (view) view.webContents.print({ silent: true, printBackground: true, pageSize: { width: 72000, height: 100000 } });
 });
 
-ipcMain.on('save-config', async (e, data) => { 
-    // Xóa flag showConfigModal khi lưu config mới
+ipcMain.on('save-config', async (e, data) => {
     data.showConfigModal = false;
-    store.set('kiosk_config', data); 
+    store.set('kiosk_config', data);
 
-    // Nếu đã có kết nối socket, gửi ngay reportDeviceInfo để Dashboard cập nhật cấu hình (url/mode/socket)
     try {
         if (socket && socket.connected) {
             await reportDeviceInfo();
@@ -635,16 +815,15 @@ ipcMain.on('save-config', async (e, data) => {
         }
     } catch (err) { console.error('Gửi reportDeviceInfo thất bại:', err); }
 
-    // Relaunch app để áp dụng cấu hình mới
-    app.relaunch(); 
-    app.exit(0); 
+
+    app.relaunch();
+    app.exit(0);
 });
 app.disableHardwareAcceleration();
 app.whenReady().then(() => {
-    // Allow camera/media permission prompts automatically for kiosk origins
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
         if (permission === 'media') return callback(true);
-        // allow notifications for convenience
+
         if (permission === 'notifications') return callback(true);
         callback(false);
     });
