@@ -1,76 +1,177 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="UTF-8">
     <title>Kiosk Setup</title>
     <style>
-        body { 
-            background: #1a1a1a; 
-            color: white; 
-            font-family: 'Segoe UI', sans-serif; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
-            margin: 0; 
+        body {
+            /*background: #1a1a1a; */
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
             overflow: hidden;
         }
-        .card { 
-            
-            background: #2d2d2d; 
-            padding: 30px; 
-            border-radius: 15px; 
-            width: 400px; 
-            text-align: center; 
-            border: 1px solid #fe7b00; 
-            box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
+
+        .card {
+
+            background: #fff;
+            padding: 30px;
+            border-radius: 15px;
+            width: 400px;
+            text-align: center;
+            border: 1px solid #fe7b00;
+            /*box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);*/
         }
-        .title-he { color: #fe7b00; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px;font-size: 40px; }
-        
-        .field-group { text-align: left; margin-bottom: 15px; }
-        label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; }
-        
-        input[type="text"], input[type="time"] { 
-            width: 100%; 
-            padding: 12px; 
-            border-radius: 5px; 
-            border: 1px solid #444; 
-            background: #3d3d3d; 
-            color: white; 
-            box-sizing: border-box; 
+
+        .title-he {
+            color: #EF5A32;
+            font-weight: bold;
+            margin-bottom: 25px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 40px;
+        }
+
+        .field-group {
+            text-align: left;
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: #000;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"],
+        input[type="time"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #EF5A32;
+            background: #fff;
+            color: #000;
+            box-sizing: border-box;
             outline: none;
         }
-        input:focus { border-color: #fe7b00; }
 
-        .options { 
-            display: flex; 
-            justify-content: space-around; 
-            background: #3d3d3d; 
-            padding: 10px; 
-            border-radius: 5px; 
-            margin-bottom: 20px; 
+        input:focus {
+            border-color: #EF5A32;
         }
-        .options label { color: white; margin: 0; cursor: pointer; font-size: 14px; }
-        
-        button { 
-            width: 100%; 
-            padding: 15px; 
-            background: linear-gradient(45deg, #f58720, #fe7b00); 
-            border: none; 
-            border-radius: 5px; 
-            font-weight: bold; 
-            color: #000;
-            cursor: pointer; 
+
+        .options {
+            display: flex;
+            justify-content: space-around;
+            background: #EF5A32;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .options label {
+            color: white;
+            margin: 0;
+            cursor: pointer;
+            font-size: 14px
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: #EF5A32;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            color: #fff;
+            cursor: pointer;
             transition: 0.3s;
             text-transform: uppercase;
         }
-        button:hover { opacity: 0.9; transform: scale(1.02); }
+
+        button:hover {
+            opacity: 0.9;
+            transform: scale(1.02);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        /* Hide default HTML checkbox */
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        /* The slider */
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+
+        input:checked+.slider {
+            background-color: #2196F3;
+        }
+
+        input:focus+.slider {
+            box-shadow: 0 0 1px #2196F3;
+        }
+
+        input:checked+.slider:before {
+            -webkit-transform: translateX(26px);
+            -ms-transform: translateX(26px);
+            transform: translateX(26px);
+        }
+
+        /* Rounded sliders */
+        .slider.round {
+            border-radius: 34px;
+        }
+
+        .slider.round:before {
+            border-radius: 50%;
+        }
+
+        #shutdownTime:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
+
 <body>
     <div class="card">
         <span class="title-he">THIẾT LẬP KIOSK</span>
-        
+
         <div class="field-group">
             <label>CHẾ ĐỘ HOẠT ĐỘNG</label>
             <div class="options">
@@ -85,30 +186,40 @@
         </div>
 
         <div class="field-group">
-            <label>SOCKET NAMESPACE</label>
+            <label>SOCKET NAMESPACE (Option)</label>
             <input type="text" id="socketNamespace" placeholder="ví dụ: vinmart-q1 (không dẫn đầu /)">
         </div>
 
         <div class="field-group">
-            <label>SOCKET JWT TOKEN</label>
+            <label>SOCKET JWT TOKEN (Option)</label>
             <input type="text" id="socketToken" placeholder="JWT token (tùy chọn nếu server yêu cầu)">
         </div>
 
         <div class="field-group">
-            <label>SOCKET SERVER URL (dùng để kết nối MCP)</label>
+            <label>SOCKET SERVER URL (Option)</label>
             <input type="text" id="socketServerUrl" placeholder="http://172.16.0.10:3001">
         </div>
 
         <div class="field-group">
             <label>HẸN GIỜ TẮT MÁY HẰNG NGÀY</label>
-            <input type="time" id="shutdownTime" value="22:00">
+            <div style="display:flex">
+                <label class="switch" style="width:15%">
+                    <input type="checkbox" id="shutdowncheck" checked>
+                    <span class="slider round"></span>
+                </label>
+                <input style="width:85%;margin-left:10px; color:#000" type="time" id="shutdownTime" value="22:00">
+            </div>
+
         </div>
 
         <button onclick="save()">LƯU & KHỞI CHẠY HỆ THỐNG</button>
     </div>
 
     <script>
-        const { ipcRenderer, shell } = require('electron');
+        const {
+            ipcRenderer,
+            shell
+        } = require('electron');
 
         function updateModeUI(mode) {
             const websiteGroup = document.getElementById('websiteGroup');
@@ -174,9 +285,9 @@
             const websiteUrl = document.getElementById('url').value.trim();
             const socketServerUrl = document.getElementById('socketServerUrl').value.trim();
             const shutdownTime = document.getElementById('shutdownTime').value;
-
+            const isOnsutdown = document.getElementById('shutdowncheck').checked;
             // Validate socket server URL (required always)
-            if(!socketServerUrl) {
+            if (mode === 'AI' && !socketServerUrl) {
                 alert("Vui lòng nhập socket server URL");
                 return;
             }
@@ -187,21 +298,37 @@
                 return;
             }
 
-            if(!shutdownTime) {
-                alert("Vui lòng chọn thời gian tắt máy!");
-                return;
-            }
 
             // Gửi toàn bộ dữ liệu về main.js để lưu vào electron-store
-            ipcRenderer.send('save-config', { 
-                mode, 
-                url: websiteUrl || '', 
+            ipcRenderer.send('save-config', {
+                mode,
+                url: websiteUrl || '',
                 shutdownTime,
+                isOnsutdown,
                 socketNamespace: document.getElementById('socketNamespace').value.replace(/^\//, ''),
                 socketToken: document.getElementById('socketToken').value,
                 socketServerUrl
             });
         }
+
+
+        function updateState() {
+            const isChecked = switchEl.checked;
+
+            // enable / disable input
+            timeInput.disabled = !isChecked;
+
+            // lấy giá trị
+            console.log('Switch:', isChecked);
+            console.log('Time:', timeInput.value);
+        }
+
+        // chạy lần đầu
+        updateState();
+
+        // khi toggle switch
+        switchEl.addEventListener('change', updateState);
     </script>
 </body>
+
 </html>

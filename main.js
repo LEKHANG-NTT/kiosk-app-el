@@ -53,7 +53,8 @@ function isAdmin() {
 /* ==========================================================
    1. QUẢN LÝ HỆ THỐNG & KIOSK HARDENING
    ========================================================== */
-function setShutdownSchedule(timeStr) {
+function setShutdownSchedule(timeStr,isOnsutdown) {
+    if(!isOnsutdown) return;
     if (!timeStr || timeStr === "N/A" || timeStr === "") return;
     if (shutdownJob) shutdownJob.cancel();
 
@@ -125,7 +126,7 @@ async function reportDeviceInfo() {
             ram: (mem.total / (1024 ** 3)).toFixed(2) + " GB",
             freeRam: (mem.free / (1024 ** 3)).toFixed(2) + " GB", // Thêm báo cáo RAM trống
             ip: network.find(n => !n.internal && n.ip4)?.ip4 || "127.0.0.1",
-            shutdownTime: config ? config.shutdownTime : "N/A",
+            shutdownTime: config.isOnsutdown==true ? config.shutdownTime : "N/A",
             printers: printers.map(p => p.name),
             // Thêm thông tin cấu hình để lưu vào `specs` trên server
             url: config?.url || null,
@@ -138,17 +139,14 @@ async function reportDeviceInfo() {
 
 function setupSocket(serverUrl) {
     const config = store.get('kiosk_config');
-    // Giả sử serverUrl là http://localhost:3001
-    // Namespace lấy từ config (ví dụ: 'cn-q1')
-    const namespace = config.socketNamespace || 'default';
+    const namespace = config.socketNamespace || '';
     const token = config.socketToken || null;
-
-    // include token in auth for server-side JWT validation
+if(namespace!=""&&namespace!=null){
     socket = io(`${serverUrl}/${namespace}`, {
         auth: { token },
         query: {
             kioskId: MY_ID,
-            type: 'kiosk' // Khai báo rõ loại client là kiosk
+            type: 'kiosk'
         }
     });
 
@@ -217,6 +215,7 @@ function setupSocket(serverUrl) {
         }
     });
 }
+}
 
 /* ==========================================================
    4. KHỞI TẠO CỬA SỔ CHÍNH & NAV BAR
@@ -224,7 +223,7 @@ function setupSocket(serverUrl) {
 function createMainWindow() {
     const config = store.get('kiosk_config');
     if (!config || config.showConfigModal) {
-        configWin = new BrowserWindow({ width: 500, height: 550, frame: false, alwaysOnTop: true, center: true, webPreferences: { nodeIntegration: true, contextIsolation: false } });
+        configWin = new BrowserWindow({ width: 500, height: 750, frame: false, alwaysOnTop: true, center: true, webPreferences: { nodeIntegration: true, contextIsolation: false } });
         configWin.loadFile('config.html');
 
         // Gửi dữ liệu config hiện tại cho form nếu có (không phụ thuộc vào config.url)
@@ -237,7 +236,7 @@ function createMainWindow() {
     }
 
     enableKioskHardening();
-    setShutdownSchedule(config.shutdownTime);
+    setShutdownSchedule(config.shutdownTime,config.isOnsutdown);
 
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
     const navHeight = 45;
@@ -276,7 +275,7 @@ function createMainWindow() {
     view.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
         console.warn('did-fail-load', { errorCode, errorDescription, validatedURL, isMainFrame });
         if (!isMainFrame) return;
-        // load offline page
+
         try {
             view.webContents.loadFile(path.join(__dirname, 'offline.html'));
             scheduleReconnect();
@@ -286,8 +285,8 @@ function createMainWindow() {
     // When page successfully loads -> reset reconnect attempts and inject input filter
     view.webContents.on('did-finish-load', () => {
 
-                // Inject CSS cho bàn phím ảo, căn chỉnh đều phím và popup
-                const keyboardCss = `
+        // Inject CSS cho bàn phím ảo, căn chỉnh đều phím và popup
+        const keyboardCss = `
                 #kiosk-suggest-bar button{
                     background:#444;
                     border:none;
@@ -304,208 +303,204 @@ function createMainWindow() {
                 .popup-keyboard-variant { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); background: #444; border-radius: 8px; padding: 6px 8px; z-index: 1000000; display: flex; gap: 6px; }
                 .popup-keyboard-variant button { font-size: 1.3em; background: #666; color: #fff; border: none; border-radius: 6px; padding: 6px 10px; margin: 0 2px; }
                 `;
-                view.webContents.insertCSS(keyboardCss);
-
-                // Inject JS cho bàn phím ảo: layout không chứa ký tự popup, long press chuẩn, cập nhật Caps Lock, inject 1 lần
-                        const keyboardScript = `
-            (function(){
-
-            if(window.__KIOSK_KEYBOARD__) return;
-            window.__KIOSK_KEYBOARD__=true;
-
-            const suggestMap={
-            a:['á','à','ả','ã','ạ','ă','â'],
-            e:['é','è','ẻ','ẽ','ẹ','ê'],
-            i:['í','ì','ỉ','ĩ','ị'],
-            o:['ó','ò','ỏ','õ','ọ','ô','ơ'],
-            u:['ú','ù','ủ','ũ','ụ','ư'],
-            y:['ý','ỳ','ỷ','ỹ','ỵ'],
-            d:['đ']
-            };
-
-            let currentSuggestions=[];
-
-            const layoutBase=[
-            '{suggest}',
-            '1 2 3 4 5 6 7 8 9 0 {backspace}',
-            'q w e r t y u i o p',
-            '{caps} a s d f g h j k l',
-            'z x c v {space} b n m {close}'
-            ];
-
-            let isCaps=false;
-            let activeInput=null;
-
-            function getLayout(){
-
-            const suggestRow=currentSuggestions.join(' ');
-
-            const rows=[...layoutBase];
-
-            rows[0]=suggestRow || '';
-
-            return rows.map(row=>{
-
-            return row.split(' ').map(k=>{
-            if(k.length===1 && /[a-z]/i.test(k))
-            return isCaps ? k.toUpperCase() : k.toLowerCase();
-
-            return k;
-
-            }).join(' ');
-
-            });
-
-            }
-
-            function updateSuggestions(key,keyboard){
-
-            const list=suggestMap[key?.toLowerCase()] || [];
-
-            currentSuggestions=isCaps ? list.map(c=>c.toUpperCase()) : list;
-
-            keyboard.setOptions({
-            layout:{default:getLayout()}
-            });
-
-            }
-
-            const script=document.createElement('script');
-            script.src='https://cdn.jsdelivr.net/npm/simple-keyboard@latest/build/index.min.js';
-
-            script.onload=()=>{
-
-            const Keyboard=window.SimpleKeyboard.default;
-
-            const keyboard=new Keyboard({
-
-            layout:{default:getLayout()},
-
-            display:{
-            '{backspace}':'⌫',
-            '{space}':'Space',
-            '{close}':'Đóng',
-            '{caps}':'Caps'
-            },
-
-            onKeyPress:button=>{
-
-            if(!activeInput) return;
-
-            if(currentSuggestions.includes(button)){
-
-            activeInput.value=
-            activeInput.value.slice(0,-1)+button;
-
-            activeInput.dispatchEvent(new Event('input',{bubbles:true}));
-
-            return;
-
-            }
-
-            if(button==='{caps}'){
-
-            isCaps=!isCaps;
-
-            keyboard.setOptions({
-            layout:{default:getLayout()}
-            });
-
-            return;
-
-            }
-
-            if(button==='{backspace}'){
-
-            activeInput.value=
-            activeInput.value.slice(0,-1);
-
-            activeInput.dispatchEvent(new Event('input',{bubbles:true}));
-
-            return;
-
-            }
-
-            if(button==='{space}'){
-
-            activeInput.value+=' ';
-
-            activeInput.dispatchEvent(new Event('input',{bubbles:true}));
-
-            currentSuggestions=[];
-
-            keyboard.setOptions({layout:{default:getLayout()}});
-
-            return;
-
-            }
-
-            if(button==='{close}'){
-
-            document.getElementById('kiosk-keyboard-wrapper').style.display='none';
-
-            return;
-
-            }
-
-            if(button.length===1){
-
-            const char=isCaps ? button.toUpperCase() : button;
-
-            activeInput.value+=char;
-
-            activeInput.dispatchEvent(new Event('input',{bubbles:true}));
-
-            updateSuggestions(button,keyboard);
-
-            }
-
-            }
-
-            });
-
-            };
-
-            document.head.appendChild(script);
-
-            if(!document.getElementById('kiosk-keyboard-wrapper')){
-
-            const div=document.createElement('div');
-            div.id='kiosk-keyboard-wrapper';
-            div.innerHTML='<div class="simple-keyboard"></div>';
-            document.body.appendChild(div);
-
-            }
-
-            document.addEventListener('focusin',e=>{
-
-            if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'){
-
-            activeInput=e.target;
-
-            document.getElementById('kiosk-keyboard-wrapper').style.display='block';
-
-            }
-
-            });
-
-            document.addEventListener('mousedown',e=>{
-
-            const wrap=document.getElementById('kiosk-keyboard-wrapper');
-
-            if(wrap && !wrap.contains(e.target)
-            && e.target.tagName!=='INPUT'
-            && e.target.tagName!=='TEXTAREA'){
-
-            wrap.style.display='none';
-
-            }
-
-            });
-
-            })();
+        view.webContents.insertCSS(keyboardCss);
+
+        // Inject JS cho bàn phím ảo: layout không chứa ký tự popup, long press chuẩn, cập nhật Caps Lock, inject 1 lần
+        const keyboardScript = `
+            (function () {
+                        if (window.__KIOSK_KEYBOARD__) return;
+                        window.__KIOSK_KEYBOARD__ = true;
+
+                        const suggestMap = {
+                            a: ['á','à','ả','ã','ạ','ă','â','ấ','ầ','ẩ','ẫ','ậ','ắ','ằ','ẳ','ẵ','ặ'],
+                            e: ['é','è','ẻ','ẽ','ẹ','ê','ế','ề','ể','ễ','ệ'],
+                            i: ['í','ì','ỉ','ĩ','ị'],
+                            o: ['ó','ò','ỏ','õ','ọ','ô','ơ','ố','ồ','ổ','ỗ','ộ','ớ','ờ','ở','ỡ','ợ'],
+                            u: ['ú','ù','ủ','ũ','ụ','ư','ứ','ừ','ử','ữ','ự'],
+                            y: ['ý','ỳ','ỷ','ỹ','ỵ'],
+                            d: ['đ']
+                        };
+
+                     
+
+                        let currentSuggestions = [];
+                        let isCaps = false;
+                        let activeInput = null;
+
+                        const layoutBase = [
+                            '{suggest}',
+                            '1 2 3 4 5 6 7 8 9 0 {backspace}',
+                            'q w e r t y u i o p',
+                            '{caps} a s d f g h j k l',
+                            'z x c v {space} b n m {close}'
+                        ];
+
+                        function getLayout() {
+                            const suggestRow = currentSuggestions.join(' ');
+                            const rows = [...layoutBase];
+                            rows[0] = suggestRow || '';
+
+                            return rows.map(row =>
+                            row.split(' ').map(k => {
+                                if (k.length === 1 && /[a-z]/i.test(k)) {
+                                return isCaps ? k.toUpperCase() : k.toLowerCase();
+                                }
+                                return k;
+                            }).join(' ')
+                            );
+                        }
+
+                        function updateKeyboard(keyboard) {
+                            keyboard.setOptions({
+                            layout: { default: getLayout() }
+                            });
+                        }
+
+                        function replaceChar(input, char, offset = 1) {
+                            const start = input.selectionStart;
+                            const end = input.selectionEnd;
+                            const value = input.value;
+
+                            input.value =
+                            value.slice(0, start - offset) +
+                            char +
+                            value.slice(end);
+
+                            input.setSelectionRange(start - offset + char.length, start - offset + char.length);
+                        }
+
+                        function insertChar(input, char) {
+                            const start = input.selectionStart;
+                            const end = input.selectionEnd;
+                            const value = input.value;
+
+                            input.value =
+                            value.slice(0, start) +
+                            char +
+                            value.slice(end);
+
+                            input.setSelectionRange(start + char.length, start + char.length);
+                        }
+
+                     
+
+                        function updateSuggestions(key, keyboard) {
+                            const list = suggestMap[key?.toLowerCase()] || [];
+                            currentSuggestions = isCaps ? list.map(c => c.toUpperCase()) : list;
+                            updateKeyboard(keyboard);
+                        }
+
+                        // Load keyboard lib
+                        function initKeyboard() {
+                            const Keyboard = window.SimpleKeyboard.default;
+
+                            const keyboard = new Keyboard({
+                            layout: { default: getLayout() },
+
+                            display: {
+                                '{backspace}': '⌫',
+                                '{space}': '─────────',
+                                '{close}': '✖️',
+                                '{caps}': '⇑ Caps'
+                            },
+
+                            onKeyPress: button => {
+                                if (!activeInput) return;
+
+                                // chọn gợi ý
+                                if (currentSuggestions.includes(button)) {
+                                replaceChar(activeInput, button);
+                                activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                return;
+                                }
+
+                                if (button === '{caps}') {
+                                isCaps = !isCaps;
+                                updateKeyboard(keyboard);
+                                return;
+                                }
+
+                                if (button === '{backspace}') {
+                                replaceChar(activeInput, '', 1);
+                                activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                return;
+                                }
+
+                                if (button === '{space}') {
+                                insertChar(activeInput, ' ');
+                                currentSuggestions = [];
+                                updateKeyboard(keyboard);
+                                return;
+                                }
+
+                                if (button === '{close}') {
+                                document.getElementById('kiosk-keyboard-wrapper').style.display = 'none';
+                                return;
+                                }
+
+                                if (button.length === 1) {
+                                const char = isCaps ? button.toUpperCase() : button;
+
+                                
+                             
+
+                                insertChar(activeInput, char);
+                                activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+                                // update suggest
+                                if (suggestMap[button?.toLowerCase()]) {
+                                    updateSuggestions(button, keyboard);
+                                } else {
+                                    currentSuggestions = [];
+                                    updateKeyboard(keyboard);
+                                }
+                                }
+                            }
+                            });
+                        }
+
+                        // Load script 1 lần
+                        if (!window.SimpleKeyboard) {
+                            const script = document.createElement('script');
+                            script.src = 'https://cdn.jsdelivr.net/npm/simple-keyboard@latest/build/index.min.js';
+                            script.onload = initKeyboard;
+                            document.head.appendChild(script);
+                        } else {
+                            initKeyboard();
+                        }
+
+                        // UI
+                        if (!document.getElementById('kiosk-keyboard-wrapper')) {
+                            const div = document.createElement('div');
+                            div.id = 'kiosk-keyboard-wrapper';
+                            div.innerHTML = '<div class="simple-keyboard"></div>';
+                            document.body.appendChild(div);
+                        }
+
+                        // focus input
+                        document.addEventListener('focusin', e => {
+                            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                            activeInput = e.target;
+                            document.getElementById('kiosk-keyboard-wrapper').style.display = 'block';
+                            }
+                        });
+
+                        // click ngoài → ẩn
+                        document.addEventListener('mousedown', e => {
+                            const wrap = document.getElementById('kiosk-keyboard-wrapper');
+                            if (
+                            wrap &&
+                            !wrap.contains(e.target) &&
+                            e.target.tagName !== 'INPUT' &&
+                            e.target.tagName !== 'TEXTAREA'
+                            ) {
+                            wrap.style.display = 'none';
+                            }
+                        });
+
+                        })();
             `;
-                view.webContents.executeJavaScript(keyboardScript);
+        view.webContents.executeJavaScript(keyboardScript);
     });
     // Intercept navigations from offline page (app://reload, app://open-admin)
     view.webContents.on('will-navigate', (e, url) => {
@@ -609,8 +604,8 @@ function createTouchZone(screenHeight) {
     // Lấy kích thước toàn màn hình (bao gồm cả width để tính góc bên phải)
     const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
 
-    const winWidth = 100;
-    const winHeight = 100;
+    const winWidth = 350;
+    const winHeight = 500;
 
     touchWin = new BrowserWindow({
         width: winWidth,
@@ -676,7 +671,7 @@ function createTouchZone(screenHeight) {
         if (touchWin && !touchWin.isDestroyed()) {
             touchWin.moveTop();
         }
-    }, 1000);
+    }, 100);
 }
 
 function createQuickButtons(screenHeight) {
@@ -688,11 +683,7 @@ function createQuickButtons(screenHeight) {
         width: btnSize, height: btnSize, x: 20, y: screenHeight2 - btnSize - 20, frame: false, transparent: true,
         alwaysOnTop: true, skipTaskbar: true, focusable: true, resizable: false, webPreferences: { nodeIntegration: true, contextIsolation: false }
     });
-    qrBtnWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
-        <body style="margin:0;background:transparent;display:flex;align-items:flex-end;justify-content:flex-start;">
-            <div id="qr" style="width:60px;height:60px;border-radius:30px;background:rgba(0,0,0,0.6);color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;cursor:pointer;font-family:Segoe UI;">QR</div>
-            <script>const {ipcRenderer}=require('electron'); document.getElementById('qr').addEventListener('click',()=>ipcRenderer.send('open-qr-in-view'))</script>
-        </body>` )}`);
+
 
     // Home button bottom-right
     homeBtnWin = new BrowserWindow({
@@ -709,7 +700,7 @@ function createQuickButtons(screenHeight) {
     setInterval(() => {
         if (qrBtnWin && !qrBtnWin.isDestroyed()) qrBtnWin.moveTop();
         if (homeBtnWin && !homeBtnWin.isDestroyed()) homeBtnWin.moveTop();
-    }, 1000);
+    }, 100);
 }
 
 /* ==========================================================
@@ -723,14 +714,6 @@ ipcMain.on('clear-session', async () => {
     try { await clearAllSession(); console.log('Session cleared via IPC'); } catch (e) { console.error(e); }
 });
 
-ipcMain.on('open-qr-in-view', () => {
-    try {
-        if (!view) return;
-        lastPageUrl = view.webContents.getURL();
-        qrLocalMode = true;
-        view.webContents.loadFile(path.join(__dirname, 'qr-scanner.html'));
-    } catch (e) { console.error('open-qr-in-view error', e); }
-});
 
 ipcMain.on('qr-home', () => {
     try {
@@ -776,14 +759,58 @@ ipcMain.on('nav-action', (e, cmd) => {
 
 ipcMain.on('request-passcode-dialog', () => {
     if (promptWin) promptWin.close();
-    promptWin = new BrowserWindow({ width: 300, height: 200, frame: false, alwaysOnTop: true, center: true, webPreferences: { nodeIntegration: true, contextIsolation: false } });
-    const html = `<body style="background:#222; color:white; text-align:center; padding:20px; border:2px solid #00f2fe; font-family:sans-serif;">
-        <h3 style="margin:0">MÃ QUẢN TRỊ</h3>
-        <input type="password" id="p" autofocus style="width:80%; padding:10px; margin:15px 0; background:#444; border:none; color:white; text-align:center;">
-        <br><button onclick="s()" style="background:#00f2fe; border:none; padding:10px 20px; font-weight:bold; cursor:pointer;">OK</button>
-        <button onclick="window.close()" style="background:#555; color:white; border:none; padding:10px 20px; cursor:pointer;">HỦY</button>
-        <script>const {ipcRenderer}=require('electron'); function s(){ipcRenderer.send('verify-passcode', document.getElementById('p').value)}</script>
-    </body>`;
+    promptWin = new BrowserWindow({ width: 300, height: 500, frame: false, alwaysOnTop: true, center: true, webPreferences: { nodeIntegration: true, contextIsolation: false } });
+    const html = `<body style="background:#222; color:white; text-align:center; padding:20px; border:2px solid #EF5A32; font-family:sans-serif; user-select: none;">
+    
+    <h3 style="margin:0; color:#EF5A32">MÃ QUẢN TRỊ</h3>
+    
+    <input type="password" id="p" style="width:80%; padding:15px; margin:15px 0; background:#444; border:none; color:white; text-align:center; font-size: 1.2rem; letter-spacing: 5px;">
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 250px; margin: 0 auto 20px auto;">
+        <button onclick="a(1)" style="padding:15px; background:#444; color:white; border:none; font-weight:bold; cursor:pointer;">1</button>
+        <button onclick="a(2)" style="padding:15px; background:#444; color:white; border:none; font-weight:bold; cursor:pointer;">2</button>
+        <button onclick="a(3)" style="padding:15px; background:#444; color:white; border:none; font-weight:bold; cursor:pointer;">3</button>
+        <button onclick="a(4)" style="padding:15px; background:#444; color:white; border:none; font-weight:bold; cursor:pointer;">4</button>
+        <button onclick="a(5)" style="padding:15px; background:#444; color:white; border:none; font-weight:bold; cursor:pointer;">5</button>
+        <button onclick="a(6)" style="padding:15px; background:#444; color:white; border:none; font-weight:bold; cursor:pointer;">6</button>
+        <button onclick="a(7)" style="padding:15px; background:#444; color:white; border:none; font-weight:bold; cursor:pointer;">7</button>
+        <button onclick="a(8)" style="padding:15px; background:#444; color:white; border:none; font-weight:bold; cursor:pointer;">8</button>
+        <button onclick="a(9)" style="padding:15px; background:#444; color:white; border:none; font-weight:bold; cursor:pointer;">9</button>
+        <button onclick="c()" style="padding:15px; background:#666; color:white; border:none; font-weight:bold; cursor:pointer;">C</button>
+        <button onclick="a(0)" style="padding:15px; background:#444; color:white; border:none; font-weight:bold; cursor:pointer;">0</button>
+        <button onclick="b()" style="padding:15px; background:#666; color:white; border:none; font-weight:bold; cursor:pointer;">←</button>
+    </div>
+
+    <div style="display: flex; justify-content: center; gap: 10px;">
+        <button onclick="s()" style="background:#EF5A32; border:none; padding:12px 30px; font-weight:bold; color:white; cursor:pointer;">OK</button>
+        <button onclick="window.close()" style="background:#555; color:white; border:none; padding:12px 30px; cursor:pointer;">HỦY</button>
+    </div>
+
+    <script>
+        const {ipcRenderer} = require('electron');
+        const p = document.getElementById('p');
+
+        // Hàm thêm số
+        function a(v) {
+            p.value += v;
+        }
+
+        // Hàm xóa 1 ký tự (Backspace)
+        function b() {
+            p.value = p.value.slice(0, -1);
+        }
+
+        // Hàm xóa sạch (Clear)
+        function c() {
+            p.value = '';
+        }
+
+        // Hàm gửi dữ liệu
+        function s() {
+            ipcRenderer.send('verify-passcode', p.value);
+        }
+    </script>
+</body>`;
     promptWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 });
 

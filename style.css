@@ -75,3 +75,12 @@ body, html {
     .orb { width: 40px; height: 40px; }
     #header-section { height: 20vh; }
 }
+#kiosk-keyboard-wrapper {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  z-index: 9999;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+}
